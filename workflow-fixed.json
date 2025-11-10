@@ -1,0 +1,272 @@
+{
+  "name": "AIPlot Scene Generator - Claude API (FIXED v3 - 2025)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aiplot-generate",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "aiplot-generate"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "sheetName": "ModelLibrary",
+        "range": "A2:I100",
+        "options": {
+          "valueRenderMode": "UNFORMATTED_VALUE"
+        }
+      },
+      "id": "2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+      "name": "Google Sheets - Read Models",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [450, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get all models from Google Sheets\nconst models = $input.all();\n\n// Format for Claude\nconst modelLibrary = models.map(item => {\n  const data = item.json;\n  return {\n    id: parseInt(data.ID),\n    name: data.Name,\n    url: data.URL,\n    gridSize: {\n      x: parseInt(data.GridX),\n      y: parseInt(data.GridY)\n    },\n    category: data.Category,\n    tags: data.Tags.split(',').map(t => t.trim())\n  };\n});\n\n// Get user prompt from webhook\nconst userPrompt = $('Webhook').item.json.body.prompt;\n\n// Return formatted data\nreturn {\n  json: {\n    prompt: userPrompt,\n    modelLibrary: modelLibrary,\n    totalModels: modelLibrary.length\n  }\n};"
+      },
+      "id": "3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+      "name": "Format Model Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"model\": \"claude-sonnet-4-5-20250929\",\n  \"max_tokens\": 4096,\n  \"temperature\": 0.7,\n  \"system\": \"You are an expert Unity 3D scene designer. You generate scene configurations based on user requirements and available 3D models. Your output must be valid JSON with specific structure for object placement in 3D space.\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"# Task: Generate Unity 3D Scene Configuration\\n\\n## User Request:\\n\" + $json.prompt + \"\\n\\n## Available 3D Models:\\n\" + JSON.stringify($json.modelLibrary, null, 2) + \"\\n\\n## Instructions:\\n1. Analyze the user's request to understand the desired environment, mood, and scale\\n2. Select appropriate models from the library that match the request\\n3. Determine quantity of each model based on scene requirements\\n4. Generate 3D positions (x, y, z) for each object with proper spacing\\n5. Consider object grid sizes to avoid overlaps\\n6. Place objects naturally according to their type (e.g., trees scattered, rocks clustered)\\n\\n## Required JSON Output Format:\\n{\\n  \\\"sceneConfig\\\": {\\n    \\\"environment\\\": \\\"tropical|desert|spring|winter|urban|nature\\\",\\n    \\\"mood\\\": \\\"peaceful|energetic|mysterious|etc\\\",\\n    \\\"scale\\\": \\\"small|medium|large\\\",\\n    \\\"area\\\": 100\\n  },\\n  \\\"objects\\\": [\\n    {\\n      \\\"modelId\\\": 1,\\n      \\\"name\\\": \\\"PalmTree_1\\\",\\n      \\\"url\\\": \\\"https://...\\\",\\n      \\\"position\\\": {\\\"x\\\": 10.5, \\\"y\\\": 0, \\\"z\\\": 15.2},\\n      \\\"rotation\\\": {\\\"x\\\": 0, \\\"y\\\": 45, \\\"z\\\": 0},\\n      \\\"scale\\\": {\\\"x\\\": 1, \\\"y\\\": 1, \\\"z\\\": 1},\\n      \\\"gridSize\\\": {\\\"x\\\": 1, \\\"y\\\": 1}\\n    }\\n  ],\\n  \\\"stats\\\": {\\n    \\\"totalObjects\\\": 25,\\n    \\\"categories\\\": {\\\"tree\\\": 10, \\\"rock\\\": 15}\\n  }\\n}\\n\\n## Placement Rules:\\n1. Use Y=0 for ground-level objects\\n2. Position range: -area/2 to +area/2 for X and Z\\n3. Minimum spacing: gridSize * 1.5 between objects\\n4. Natural distribution: avoid perfect grids, add randomness\\n5. Primary objects (large trees): 5-10\\n6. Secondary objects (small rocks): 10-20\\n7. Rotation Y: random 0-360 for natural look\\n8. Scale: typically 1,1,1 (models are pre-scaled)\\n\\n## Important:\\n- Only use models from the provided library\\n- Generate realistic quantities (don't over-populate)\\n- Ensure proper spacing based on gridSize\\n- Return ONLY valid JSON, no markdown or explanations\"\n    }\n  ]\n} }}",
+        "options": {}
+      },
+      "id": "4d5e6f7a-8b9c-0d1e-2f3a-4b5c6d7e8f9a",
+      "name": "Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [850, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get Claude API response\nconst claudeResponse = $input.item.json;\n\n// Extract content from Claude's response\nconst content = claudeResponse.content[0].text;\n\n// Parse JSON from Claude's response\nlet sceneData;\ntry {\n  // Claude sometimes wraps in markdown, clean it\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    sceneData = JSON.parse(jsonMatch[0]);\n  } else {\n    sceneData = JSON.parse(content);\n  }\n} catch (error) {\n  throw new Error(`Failed to parse Claude response: ${error.message}\\nResponse: ${content}`);\n}\n\n// Validate required fields\nif (!sceneData.sceneConfig || !sceneData.objects) {\n  throw new Error('Invalid scene data structure from Claude');\n}\n\n// Return parsed scene data\nreturn {\n  json: {\n    sceneConfig: sceneData.sceneConfig,\n    objects: sceneData.objects,\n    stats: sceneData.stats,\n    prompt: $('Format Model Data').item.json.prompt,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b",
+      "name": "Parse Claude Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get scene data\nconst sceneData = $input.item.json;\nconst objects = sceneData.objects;\nconst config = sceneData.sceneConfig;\n\n// System object GUIDs\nconst GUID_AUDIO_AMBIENT = \"5a38e9cc-262d-4987-90eb-c5197228091c\";\nconst GUID_AUDIO_MAIN = \"17ec1d58-e43c-4d03-8217-19eebe8a1991\";\nconst GUID_LIGHT = \"f9bd6f60-f538-436b-a520-d2b9dc50b2ed\";\nconst GUID_INTERACTIVE_CUBE = \"bfaed1ac-f1f1-49dd-8bc3-431b3d1f1731\";\nconst GUID_PLANE = \"bf64aba3-b3c4-4a3d-bf62-474df55255c7\";\n\n// Helper function to escape special characters\nfunction escapeXML(str) {\n  return str\n    .replace(/ /g, '\\\\ ')\n    .replace(/\\./g, '\\\\.')\n    .replace(/#/g, '\\\\#')\n    .replace(/\\$/g, '\\\\$');\n}\n\n// Helper function to create GUID-based object\nfunction createObject(guid, position, rotation, scale, kwargs = {}) {\n  const name = kwargs.name || '';\n  const color = kwargs.color || '';\n  const trigger = kwargs.trigger || 'None';\n  const command = kwargs.command || '';\n  \n  const posStr = `${position[0]},${position[1]},${position[2]}`;\n  const rotStr = `${rotation[0]},${rotation[1]},${rotation[2]}`;\n  const scaleStr = `${scale[0]},${scale[1]},${scale[2]}`;\n  \n  return `${guid}~${posStr},${rotStr},${scaleStr}~~smart|True|None|${trigger}|None|||${name}|${color}|||${command}|`;\n}\n\n// Helper function to create GLB object\nfunction createGLBObject(url, position, rotation, scale) {\n  const posStr = `${position[0]},${position[1]},${position[2]}`;\n  const rotStr = `${rotation[0]},${rotation[1]},${rotation[2]}`;\n  const scaleStr = `${scale[0]},${scale[1]},${scale[2]}`;\n  \n  return `${url},,~${posStr},${rotStr},${scaleStr}~~smart|True|None|None|None||||||||`;\n}\n\n// Build system and static objects array\nconst systemAndStatic = [];\n\n// 1. Add system objects (hidden at y=-10)\nsystemAndStatic.push(createObject(\n  GUID_AUDIO_AMBIENT,\n  [-2, -10, 0],\n  [0, 0, 0],\n  [1, 1, 1],\n  { name: 'zPro_AudioAmbientAbility(Clone)' }\n));\n\nsystemAndStatic.push(createObject(\n  GUID_AUDIO_MAIN,\n  [2, -10, 2],\n  [0, 0, 0],\n  [1, 1, 1],\n  { name: 'zPro_AudioMain(Clone)' }\n));\n\n// 2. Add lighting (2 lights)\nconst moodColors = {\n  peaceful: '#fff8f0',\n  energetic: '#ffffff',\n  mysterious: '#8080ff'\n};\nconst moodIntensity = {\n  peaceful: 0.8,\n  energetic: 1.0,\n  mysterious: 0.5\n};\n\nconst lightColor = moodColors[config.mood] || '#ffffff';\nconst lightIntensity = moodIntensity[config.mood] || 0.8;\nconst angles = [45, 225];\n\nangles.forEach((angle, i) => {\n  const rad = angle * Math.PI / 180;\n  const x = 15 * Math.cos(rad);\n  const z = 15 * Math.sin(rad);\n  \n  const command = `setLightObject\\\\ \"Light${i+1}\\\\ ,\\\\ \"${lightColor}\\\\ ,\\\\ ${lightIntensity}\\\\ ,\\\\ \"soft\\\\ ,\\\\ 15`;\n  \n  systemAndStatic.push(createObject(\n    GUID_LIGHT,\n    [x, 5, z],\n    [30, angle, 0],\n    [1, 1, 1],\n    {\n      name: `Light${i+1}`,\n      trigger: 'None_DoOnce',\n      command: command\n    }\n  ));\n});\n\n// 3. Add ground plane\nconst area = config.area || 100;\nsystemAndStatic.push(createObject(\n  GUID_PLANE,\n  [0, 0, 0],\n  [0, 0, 0],\n  [area/2, 1, area/2],\n  {\n    name: 'zprim_Plane(Clone)',\n    color: '#FFFFFF00'\n  }\n));\n\n// 4. Add ambient audio zone\nconst audioMap = {\n  forest: 'https://metaverse.mayaver.com/my-content/forest_ambient.mp3',\n  tropical: 'https://metaverse.mayaver.com/my-content/jungle_ambient.mp3',\n  jungle: 'https://metaverse.mayaver.com/my-content/jungle_ambient.mp3',\n  desert: 'https://metaverse.mayaver.com/my-content/desert_wind.mp3',\n  spring: 'https://metaverse.mayaver.com/my-content/spring_birds.mp3'\n};\nconst audioUrl = audioMap[config.environment] || 'https://metaverse.mayaver.com/my-content/nature_ambient.mp3';\nconst audioCommand = `playAmbientAudio\\\\ \"ambient1\",\\\\ \"${audioUrl}\",\\\\ \"true\",\\\\ ${area/2},\\\\ 0.8`;\n\nsystemAndStatic.push(createObject(\n  GUID_INTERACTIVE_CUBE,\n  [0, 1, 0],\n  [0, 0, 0],\n  [area, 1, area],\n  {\n    name: 'ambient1',\n    color: '#FFFFFF00',\n    trigger: 'TriggerEnter',\n    command: audioCommand\n  }\n));\n\n// 5. Build GLB model objects array\nconst glbModels = [];\nobjects.forEach(obj => {\n  const pos = obj.position;\n  const rot = obj.rotation;\n  const scale = obj.scale;\n  const url = obj.url;\n  \n  glbModels.push(createGLBObject(\n    url,\n    [pos.x, pos.y, pos.z],\n    [rot.x, rot.y, rot.z],\n    [scale.x, scale.y, scale.z]\n  ));\n});\n\n// Scene configuration values\nconst spawnPos = `0,0,${-area/3}`;\nconst spawnRot = '0,180,0';\nconst groundType = '5';\nconst cameraPos = '0,3,0';\nconst cameraRot = '56.21999,330,0';\nconst access = 'unlocked';\n\n// Build complete XML following EXACT sample format\n// CRITICAL: [SystemObjects];^SpawnPos^SpawnRot^GroundType^^CustomGround^[GLBModels];^CameraConfig^SkyboxSettings^SkyboxModel^Access|\n\nconst parts = [];\n\n// Part 1: System objects and static objects (lights, ground, audio zones)\nif (systemAndStatic.length > 0) {\n  parts.push(systemAndStatic.join(';'));\n}\n\n// Part 2: Spawn configuration\nparts.push(`^${spawnPos}^${spawnRot}^${groundType}^^false,,^`);\n\n// Part 3: GLB models\nif (glbModels.length > 0) {\n  parts.push(glbModels.join(';'));\n}\n\n// Part 4: Camera and final configuration\nparts.push(`^${cameraPos},${cameraRot}^false||||^false||^${access}|`);\n\n// Join all parts with semicolons\nlet xml = parts.join(';');\n\n// Clean up double semicolons\nwhile (xml.includes(';;')) {\n  xml = xml.replace(';;', ';');\n}\n\n// Validate: Must have exactly 10 caret (^) markers\nconst caretCount = (xml.match(/\\^/g) || []).length;\nif (caretCount !== 10) {\n  console.log(`WARNING: Expected 10 carets, found ${caretCount}`);\n}\n\n// Return XML and metadata\nreturn {\n  json: {\n    xml: xml,\n    filename: `scene_${Date.now()}.txt`,\n    stats: {\n      totalObjects: objects.length,\n      systemObjects: systemAndStatic.length,\n      glbObjects: glbModels.length,\n      caretCount: caretCount,\n      length: xml.length\n    },\n    sceneConfig: sceneData.sceneConfig,\n    prompt: sceneData.prompt\n  }\n};"
+      },
+      "id": "6f7a8b9c-0d1e-2f3a-4b5c-6d7e8f9a0b1c",
+      "name": "Build Unity XML",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const data = $input.item.json;\nconst xml = data.xml;\n\n// Validation checks\nconst validations = {\n  hasContent: xml && xml.length > 100,\n  endsWithPipe: xml.endsWith('|'),\n  hasTenCarets: (xml.match(/\\^/g) || []).length === 10,\n  hasNoNewlines: !xml.includes('\\n') && !xml.includes('\\r'),\n  hasGLBModels: xml.includes('https://') || xml.includes('http://'),\n  hasSystemObjects: xml.split('^')[0].length > 10\n};\n\n// Check if all validations pass\nconst allValid = Object.values(validations).every(v => v);\n\nif (!allValid) {\n  const failed = Object.entries(validations)\n    .filter(([key, value]) => !value)\n    .map(([key]) => key);\n  \n  throw new Error(`XML validation failed: ${failed.join(', ')}`);\n}\n\n// Return validated data\nreturn {\n  json: {\n    ...data,\n    validated: true,\n    validations: validations\n  }\n};"
+      },
+      "id": "7a8b9c0d-1e2f-3a4b-5c6d-7e8f9a0b1c2d",
+      "name": "Validate XML",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "success",
+              "value": "true"
+            },
+            {
+              "name": "message",
+              "value": "Unity scene generated successfully! 🎉"
+            },
+            {
+              "name": "filename",
+              "value": "={{ $json.filename }}"
+            },
+            {
+              "name": "environment",
+              "value": "={{ $json.sceneConfig.environment }}"
+            },
+            {
+              "name": "mood",
+              "value": "={{ $json.sceneConfig.mood }}"
+            },
+            {
+              "name": "totalObjects",
+              "value": "={{ $json.stats.totalObjects }}"
+            },
+            {
+              "name": "xmlContent",
+              "value": "={{ $json.xml }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8b9c0d1e-2f3a-4b5c-6d7e-8f9a0b1c2d3e",
+      "name": "Prepare Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "9c0d1e2f-3a4b-5c6d-7e8f-9a0b1c2d3e4f",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1850, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Read Models",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Read Models": {
+      "main": [
+        [
+          {
+            "node": "Format Model Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Model Data": {
+      "main": [
+        [
+          {
+            "node": "Claude API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude API": {
+      "main": [
+        [
+          {
+            "node": "Parse Claude Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Claude Response": {
+      "main": [
+        [
+          {
+            "node": "Build Unity XML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Unity XML": {
+      "main": [
+        [
+          {
+            "node": "Validate XML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate XML": {
+      "main": [
+        [
+          {
+            "node": "Prepare Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-11-10T16:00:00.000Z",
+  "versionId": "4"
+}
