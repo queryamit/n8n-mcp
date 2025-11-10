@@ -9,7 +9,27 @@ Fixed the outdated Claude API model reference in the AIPlot Scene Generator work
 
 ## Bugs Fixed
 
-### 1. **Outdated Claude Model** ✅ FIXED
+### 1. **Missing x-api-key Authentication** ✅ FIXED
+**Location:** Claude API node (HTTP Request node, line 4d5e6f7a)
+
+**Issue:**
+- The workflow was using generic HTTP header authentication
+- Missing the required `x-api-key` header for Anthropic API
+- Error: "Authorization failed - x-api-key header is required"
+
+**Fix:**
+- Changed authentication from `genericCredentialType` to `predefinedCredentialType`
+- Set `nodeCredentialType` to `anthropicApi` (standard n8n Anthropic credentials)
+- Now uses the same Anthropic credentials as your other working nodes
+- Automatically sends the `x-api-key` header with API key
+
+**Benefits:**
+- ✅ Proper authentication with Anthropic API
+- ✅ Compatible with existing Anthropic credentials in n8n
+- ✅ No breaking changes to other nodes
+- ✅ Uses standard n8n credential management
+
+### 2. **Outdated Claude Model** ✅ FIXED
 **Location:** Claude API node (HTTP Request node, line 4d5e6f7a)
 
 **Issue:**
@@ -56,7 +76,36 @@ Fixed the outdated Claude API model reference in the AIPlot Scene Generator work
 
 ## Implementation Details
 
-### Changed Section:
+### Changed Sections:
+
+#### Authentication Fix:
+```json
+// BEFORE (BUGGY):
+{
+  "authentication": "genericCredentialType",
+  "genericAuthType": "httpHeaderAuth",
+  "credentials": {
+    "httpHeaderAuth": {
+      "id": "2",
+      "name": "Claude API Key"
+    }
+  }
+}
+
+// AFTER (FIXED):
+{
+  "authentication": "predefinedCredentialType",
+  "nodeCredentialType": "anthropicApi",
+  "credentials": {
+    "anthropicApi": {
+      "id": "2",
+      "name": "Anthropic API"
+    }
+  }
+}
+```
+
+#### Model Update:
 ```json
 // BEFORE (BUGGY):
 {
@@ -113,9 +162,11 @@ After importing the fixed workflow, test the following:
 
 2. **Import Fixed Workflow:**
    - Import `workflow-fixed.json` into n8n
+   - **Important:** Select your existing Anthropic API credentials for the "Claude API" node
+   - The workflow now uses standard n8n Anthropic credentials (same as your other working nodes)
    - Update credential IDs if different:
      - Google Sheets OAuth2 (ID: 1)
-     - Claude API Key (ID: 2)
+     - Anthropic API (ID: 2)
 
 3. **Test Thoroughly:**
    - Run test execution with sample data
